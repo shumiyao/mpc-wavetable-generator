@@ -1,0 +1,2442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAVEBENCH AUDIO — MPC 3.9 Wavetable from Recordings</title>
+<style>
+  :root{
+    --bg-deep:#0a0b0e;
+    --bg-panel:#15171c;
+    --bg-panel-raised:#1b1e25;
+    --line:#2c2f37;
+    --line-bright:#3a3d45;
+    --text:#e8e6e0;
+    --text-dim:#8b8d96;
+    --text-faint:#565962;
+    --accent:#ff7a1a;
+    --accent-dim:#a85420;
+    --accent-glow:rgba(255,122,26,0.35);
+    --scope:#5ee6a8;
+    --scope-dim:#2e6b51;
+    --danger:#ff5d5d;
+    --mono:"JetBrains Mono","Space Mono",monospace;
+    --sans:"Inter",-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg-deep);
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(255,122,26,0.06), transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(94,230,168,0.04), transparent 45%);
+    color:var(--text);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:28px 20px 80px;
+  }
+
+  /* ---------- header ---------- */
+  header.top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:24px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:baseline;gap:14px;}
+  .brand-mark{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.18em;
+    color:var(--accent);
+    border:1px solid var(--accent-dim);
+    padding:3px 7px;
+    border-radius:3px;
+    text-transform:uppercase;
+  }
+  h1{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:0.01em;
+    margin:0;
+  }
+  h1 span{color:var(--accent);}
+  .sub{
+    font-size:12.5px;
+    color:var(--text-dim);
+    line-height:1.7;
+    max-width:380px;
+    text-align:right;
+  }
+  .sub b{color:var(--text);font-weight:600;}
+
+  /* ---------- layout ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:900px){
+    .grid{grid-template-columns:1fr;}
+    .sub{text-align:left;max-width:none;}
+    header.top{flex-direction:column;align-items:flex-start;}
+  }
+
+  .panel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:18px 18px 20px;
+  }
+  .panel + .panel{margin-top:18px;}
+
+  .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .panel-title{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .panel-title b{color:var(--text);}
+  .tag{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+    letter-spacing:0.08em;
+  }
+
+  /* ---------- scope ---------- */
+  .scope-shell{
+    position:relative;
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .scope-shell canvas{display:block;width:100%;height:100%;}
+  .scope-grid-overlay{
+    position:absolute; inset:0;
+    background-image:
+      repeating-linear-gradient(to right, rgba(94,230,168,0.05) 0 1px, transparent 1px 12.5%),
+      repeating-linear-gradient(to bottom, rgba(94,230,168,0.05) 0 1px, transparent 1px 16.6%);
+    pointer-events:none;
+  }
+  .scope-readout{
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--text-faint);
+    padding-top:8px;
+    letter-spacing:0.03em;
+  }
+  .scope-readout span b{color:var(--scope);font-weight:600;}
+
+  .stack-shell{
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    height:120px;
+    overflow:hidden;
+  }
+  .stack-shell canvas{display:block;width:100%;height:100%;}
+
+  /* ---------- controls ---------- */
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:6px;
+  }
+  label.field-label{
+    font-size:12px;
+    color:var(--text-dim);
+    letter-spacing:0.01em;
+  }
+  .field-value{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--scope);
+    min-width:64px;
+    text-align:right;
+  }
+  input[type="range"]{
+    -webkit-appearance:none;
+    width:100%;
+    height:4px;
+    background:var(--line-bright);
+    border-radius:2px;
+    outline:none;
+    margin:0;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid #0a0b0e;
+    box-shadow:0 0 0 1px var(--accent-dim);
+    cursor:pointer;
+    margin-top:-1px;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid #0a0b0e;
+    cursor:pointer;
+  }
+
+  select, input[type="text"], input[type="number"]{
+    width:100%;
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line-bright);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:12.5px;
+    padding:8px 10px;
+    border-radius:4px;
+    outline:none;
+  }
+  select:focus, input:focus{border-color:var(--accent-dim);}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+
+  .seg{
+    display:flex;
+    border:1px solid var(--line-bright);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .seg button{
+    flex:1;
+    background:var(--bg-panel-raised);
+    color:var(--text-dim);
+    border:none;
+    padding:8px 4px;
+    font-family:var(--mono);
+    font-size:11px;
+    cursor:pointer;
+    border-right:1px solid var(--line-bright);
+    transition:background .12s, color .12s;
+  }
+  .seg button:last-child{border-right:none;}
+  .seg button:hover{color:var(--text);}
+  .seg button.active{
+    background:var(--accent);
+    color:#1a0d02;
+    font-weight:700;
+  }
+
+  .hint{
+    font-size:11px;
+    color:var(--text-faint);
+    margin-top:5px;
+    line-height:1.55;
+  }
+  .hint code{
+    color:var(--scope);
+    background:rgba(94,230,168,0.08);
+    padding:1px 4px;
+    border-radius:3px;
+    font-size:10.5px;
+  }
+  .hint b{color:var(--text-dim);}
+
+  .specs-mini{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    margin-top:14px;
+  }
+  .spec-box{
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:8px 9px;
+  }
+  .spec-box .k{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;}
+  .spec-box .v{font-family:var(--mono);font-size:13px;color:var(--text);margin-top:3px;}
+  .spec-box .v.warn{color:var(--danger);}
+  .spec-box .v.ok{color:var(--scope);}
+
+  @media (max-width:560px){
+    .specs-mini{grid-template-columns:repeat(2,1fr);}
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:0.03em;
+    padding:11px 16px;
+    border-radius:5px;
+    border:1px solid var(--line-bright);
+    background:var(--bg-panel-raised);
+    color:var(--text);
+    cursor:pointer;
+    width:100%;
+    transition:border-color .12s, background .12s;
+  }
+  .btn:hover{border-color:var(--text-dim);}
+  .btn.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#1a0d02;
+    font-weight:700;
+  }
+  .btn.primary:hover{background:#ff8c3a;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .btn-row{display:flex;gap:10px;}
+
+  .lib-name-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--text-dim);
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:9px 10px;
+    margin-bottom:10px;
+    flex-wrap:wrap;
+  }
+  .lib-name-row input{
+    flex:1;
+    min-width:80px;
+    background:transparent;
+    border:none;
+    color:var(--scope);
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:2px;
+  }
+  .lib-name-row input:focus{outline:none;}
+
+  .tablelist{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    max-height:260px;
+    overflow-y:auto;
+    margin-bottom:4px;
+  }
+  .tablelist::-webkit-scrollbar{width:6px;}
+  .tablelist::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:3px;}
+  .trow{
+    display:grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items:center;
+    gap:8px;
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:8px 10px;
+  }
+  .trow .tname{
+    font-family:var(--mono);
+    font-size:12px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .trow .tmeta{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+  }
+  .trow .tdel, .trow .tplay{
+    background:none;border:none;color:var(--text-faint);
+    cursor:pointer;font-size:14px;
+    padding:2px 4px;
+  }
+  .trow .tplay:hover{color:var(--scope);}
+  .trow .tdel:hover{color:var(--danger);}
+  .trow .tplay.playing{color:var(--scope);}
+
+  .toast{
+    position:fixed;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%) translateY(12px);
+    background:var(--bg-panel-raised);
+    border:1px solid var(--accent-dim);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:12px;
+    padding:11px 18px;
+    border-radius:6px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:50;
+    box-shadow:0 8px 30px rgba(0,0,0,0.5);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  footer.foot{
+    margin-top:30px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--text-faint);
+    line-height:1.8;
+  }
+
+  /* ---------- audio preview controls ---------- */
+  .play-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .play-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    font-family:var(--mono);
+    font-size:12px;
+    padding:9px 14px;
+    border-radius:5px;
+    border:1px solid var(--line-bright);
+    background:var(--bg-panel-raised);
+    color:var(--text);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .play-btn:hover{border-color:var(--scope);}
+  .play-btn.playing{
+    background:var(--scope-dim);
+    border-color:var(--scope);
+    color:#eafff5;
+  }
+  .play-btn .ico{font-size:11px;}
+  .note-select{flex:0 0 auto;width:auto;min-width:78px;}
+  .scan-dur{flex:1;min-width:60px;}
+  .scan-dur-label{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+    white-space:nowrap;
+  }
+
+  /* ---------- drop zone / mini wave ---------- */
+  .drop-zone{
+    border:1px dashed var(--line-bright);
+    border-radius:5px;
+    padding:18px 14px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:var(--bg-deep);
+  }
+  .drop-zone:hover, .drop-zone.dragover{
+    border-color:var(--accent);
+    background:rgba(255,122,26,0.05);
+  }
+  .drop-zone .dz-title{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text);
+    margin-bottom:4px;
+  }
+  .drop-zone .dz-sub{
+    font-size:11px;
+    color:var(--text-faint);
+  }
+  .drop-zone input[type="file"]{display:none;}
+
+  .mini-wave-shell{
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    height:64px;
+    position:relative;
+    overflow:hidden;
+  }
+  .mini-wave-shell canvas{display:block;width:100%;height:100%;}
+  .mini-wave-shell .selrange{
+    position:absolute;
+    top:0; bottom:0;
+    background:rgba(255,122,26,0.18);
+    border-left:1px solid var(--accent);
+    border-right:1px solid var(--accent);
+    pointer-events:none;
+  }
+
+  /* ---------- audio stage cards ---------- */
+  .stages-wrap{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .audio-stage{
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:12px 13px 14px;
+  }
+  .audio-stage.empty{
+    border-style:dashed;
+  }
+  .stage-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:9px;
+  }
+  .stage-top-left{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+  }
+  .stage-num{
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--accent);
+    border:1px solid var(--accent-dim);
+    border-radius:3px;
+    padding:2px 6px;
+    flex:0 0 auto;
+  }
+  .stage-filename{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--text);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .stage-filename.placeholder{color:var(--text-faint);}
+  .stage-del-btn{
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    padding:2px 4px;
+    flex:0 0 auto;
+  }
+  .stage-del-btn:hover{color:var(--danger);}
+  .stage-del-btn:disabled{opacity:0.25;cursor:not-allowed;}
+
+  .stage-body{display:none;}
+  .stage-body.loaded{display:block;}
+  .stage-drop{display:block;}
+  .stage-drop.hidden{display:none;}
+
+  .stage-weight-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:9px;
+  }
+  .stage-weight-row label{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+    white-space:nowrap;
+  }
+
+  .add-stage{
+    width:100%;
+    background:none;
+    border:1px dashed var(--line-bright);
+    color:var(--text-dim);
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:10px;
+    border-radius:4px;
+    cursor:pointer;
+  }
+  .add-stage:hover{border-color:var(--accent-dim);color:var(--text);}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div>
+        <div class="brand-mark">AUDIO → OSC // WAVETABLE</div>
+        <h1>WAVE<span>BENCH</span> AUDIO</h1>
+      </div>
+    </div>
+    <div class="sub">
+      Build MPC 3.9-compatible wavetables straight from <b>your own recordings</b>.<br>
+      No Serum or other middleman tool needed. Layer audio sources as "stages" to morph between them.
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT -->
+    <div class="col-left">
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">01 / <b>Preview &amp; Audition</b></div>
+          <div class="tag" id="cycleReadout">cycle 1 / 256</div>
+        </div>
+
+        <div class="scope-shell" style="height:180px;">
+          <canvas id="scopeCanvas"></canvas>
+          <div class="scope-grid-overlay"></div>
+        </div>
+        <div class="scope-readout">
+          <span>POSITION <b id="posReadout">0.0%</b></span>
+          <span>PEAK <b id="peakReadout">0.00</b></span>
+          <span>RMS <b id="rmsReadout">0.00</b></span>
+        </div>
+
+        <div class="field" style="margin-top:14px;">
+          <div class="field-row">
+            <label class="field-label">Scrub table position</label>
+            <span class="field-value" id="scrubValue">0</span>
+          </div>
+          <input type="range" id="scrubSlider" min="0" max="255" step="1" value="0">
+        </div>
+
+        <div class="play-row">
+          <button class="play-btn" id="playCycleBtn"><span class="ico">▶</span> Play This Cycle</button>
+          <select class="note-select" id="noteSelect">
+            <option value="65.41">C2</option>
+            <option value="130.81" selected>C3</option>
+            <option value="261.63">C4</option>
+            <option value="523.25">C5</option>
+          </select>
+        </div>
+        <div class="play-row">
+          <button class="play-btn" id="scanBtn"><span class="ico">⟳</span> Scan Through Table</button>
+          <span class="scan-dur-label">Duration</span>
+          <input type="range" class="scan-dur" id="scanDurSlider" min="1" max="12" step="0.5" value="4">
+          <span class="field-value" id="scanDurVal" style="min-width:34px;">4.0s</span>
+        </div>
+        <div class="hint">The "current" wavetable — computed live from your stage settings — can be auditioned right here, before you commit it to the table list below.</div>
+
+        <div class="stack-shell" style="margin-top:14px;">
+          <canvas id="stackCanvas"></canvas>
+        </div>
+        <div class="hint">Cross-section preview of the whole table (top = frame 1, bottom = last frame).</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">02 / <b>Audio Stages</b></div>
+          <div class="tag">Source → source → … morph</div>
+        </div>
+
+        <div class="stages-wrap" id="stagesWrap"></div>
+        <button class="add-stage" id="addStageBtn" style="margin-top:12px;">+ Add Stage (audio file)</button>
+        <div class="hint">Load one audio file per stage and trim the range to use. Across the whole table, stage 1's audio morphs smoothly into stage 2's, and so on — stages with a higher weight stay in focus longer. With a single stage, you simply get a scan-through conversion of that one recording.</div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col-right">
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">03 / <b>Conversion Parameters</b></div>
+          <div class="tag">MPC format.json</div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <label class="field-label">Samples per Cycle</label>
+            <span class="field-value" id="spcVal">2048</span>
+          </div>
+          <div class="seg" id="spcSeg">
+            <button data-v="512">512</button>
+            <button data-v="1024">1024</button>
+            <button data-v="2048" class="active">2048</button>
+            <button data-v="4096">4096</button>
+          </div>
+          <div class="hint">MPC accepts <code>512–16384</code>.</div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <label class="field-label">Frame Count (Cycles)</label>
+            <span class="field-value" id="cyclesVal">256</span>
+          </div>
+          <input type="range" id="cyclesSlider" min="2" max="512" step="1" value="256">
+          <div class="hint">MPC supports <code>2–2048</code> cycles.</div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <div class="field-row">
+              <label class="field-label">Snap to Zero-Crossing</label>
+              <input type="checkbox" id="zeroCrossCheck" checked style="width:auto;">
+            </div>
+            <div class="hint" style="margin-top:0;">Aligns each frame's start to a nearby zero-crossing to suppress clicks.</div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label class="field-label">Loop Smoothing</label><span class="field-value" id="smoothVal">35%</span></div>
+            <input type="range" id="smoothSlider" min="0" max="100" step="1" value="35">
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-row"><label class="field-label">Stage Morph Width</label><span class="field-value" id="crossfadeVal">35%</span></div>
+          <input type="range" id="crossfadeSlider" min="5" max="90" step="1" value="35">
+          <div class="hint">How much of the start of each stage's segment is used to crossfade in from the previous stage.</div>
+        </div>
+
+        <div class="row2" style="margin-top:14px;">
+          <div class="field">
+            <div class="field-row"><label class="field-label">Sample Rate</label></div>
+            <select id="srSelect">
+              <option value="44100" selected>44,100 Hz</option>
+              <option value="48000">48,000 Hz</option>
+              <option value="96000">96,000 Hz</option>
+              <option value="22050">22,050 Hz</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-row"><label class="field-label">Bit Depth</label></div>
+            <select id="bitSelect">
+              <option value="16">16-bit PCM</option>
+              <option value="24" selected>24-bit PCM</option>
+              <option value="32">32-bit float</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="specs-mini">
+          <div class="spec-box">
+            <div class="k">WAV Length</div>
+            <div class="v" id="specLen">524,288 smp</div>
+          </div>
+          <div class="spec-box">
+            <div class="k">Duration</div>
+            <div class="v" id="specDur">46.4 ms/cycle</div>
+          </div>
+          <div class="spec-box">
+            <div class="k">File Size</div>
+            <div class="v" id="specSize">1.5 MB</div>
+          </div>
+          <div class="spec-box">
+            <div class="k">Spec Check</div>
+            <div class="v ok" id="specCheck">OK</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">04 / <b>Export</b></div>
+          <div class="tag" id="tableCountTag">0 tables</div>
+        </div>
+
+        <div class="lib-name-row">
+          Library name:
+          <input type="text" id="libName" value="MyWavetables" maxlength="40">
+        </div>
+
+        <div class="field" style="margin-bottom:10px;">
+          <div class="field-row">
+            <label class="field-label">This table's name</label>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="currentTableName" value="table_01" style="flex:1;">
+            <button class="btn primary" id="addTableBtn" style="width:auto;padding:9px 16px;">Add to Table</button>
+          </div>
+        </div>
+
+        <div class="tablelist" id="tableList"></div>
+
+        <div class="btn-row" style="margin-top:14px;">
+          <button class="btn" id="clearTablesBtn">Clear All</button>
+          <button class="btn primary" id="exportZipBtn">Export ZIP</button>
+        </div>
+        <div class="hint">"Add to Table" computes a wavetable from the current stage setup and adds it to the library. Multiple tables are bundled into a ZIP with <code>Oscillators/Wavetables/&lt;Lib&gt;/</code> structure (max 512 files per folder). Use ▶ on any row to audition a committed table too.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">05 / <b>Settings</b></div>
+          <div class="tag" id="autosaveStatus">autosave: checking…</div>
+        </div>
+
+        <div class="hint" style="margin-top:0;">Parameters (frame size, cycle count, smoothing, library name, stage trims/weights, etc.) are saved automatically in this browser and restored next time you open this file. Audio itself isn't saved — only stage <i>metadata</i> is, so you'll need to re-drop the same file(s) to restore the sound.</div>
+
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn" id="exportSettingsBtn">Export Settings (.json)</button>
+          <button class="btn" id="importSettingsBtn">Import Settings (.json)</button>
+          <input type="file" id="importSettingsInput" accept="application/json,.json" style="display:none;">
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn" id="resetSettingsBtn">Reset to Defaults</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    WAVEBENCH AUDIO — runs entirely offline / nothing is sent to a server. Spec reference: AKAI MPC 3.9 wavetable oscillator (folder + format.json, mono WAV, 512–16384 samples/cycle, 2–2048 cycles, 22.05k–96kHz). Use at your own risk — on-device behavior may change with future firmware.
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // =========================================================
+  // State
+  // =========================================================
+  const state = {
+    samplesPerCycle: 2048,
+    numCycles: 256,
+    sampleRate: 44100,
+    bitDepth: 24,
+    scrub: 0,
+    zeroCrossSnap: true,
+    smoothAmt: 0.35,
+    crossfadeFrac: 0.35,
+    tables: [],   // {name, samplesPerCycle, numCycles, sampleRate, bitDepth, floatData}
+  };
+
+  // Each audio stage: { id, fileName, monoData (Float32Array|null), sourceSampleRate,
+  //                      trimStartPct, trimEndPct, weight }
+  let stages = [];
+  let stageCounter = 0;
+
+  function makeEmptyStage(restored) {
+    stageCounter++;
+    let trimStart = 0, trimEnd = 100, weight = 3;
+    if (restored) {
+      if (typeof restored.trimStartPct === 'number' && isFinite(restored.trimStartPct)) {
+        trimStart = Math.max(0, Math.min(100, restored.trimStartPct));
+      }
+      if (typeof restored.trimEndPct === 'number' && isFinite(restored.trimEndPct)) {
+        trimEnd = Math.max(0, Math.min(100, restored.trimEndPct));
+      }
+      if (trimEnd <= trimStart) { trimStart = 0; trimEnd = 100; }
+      if (typeof restored.weight === 'number' && isFinite(restored.weight)) {
+        weight = Math.max(1, Math.min(10, restored.weight));
+      }
+    }
+    return {
+      id: 'stage_' + stageCounter,
+      fileName: restored ? (restored.fileName || '') : '',
+      monoData: null,
+      sourceSampleRate: 44100,
+      trimStartPct: trimStart,
+      trimEndPct: trimEnd,
+      weight: weight,
+      // true while this stage has saved metadata (filename/trim/weight) but
+      // no audio yet — the user needs to re-drop the file to "complete" it.
+      restoredPlaceholder: !!(restored && restored.fileName),
+    };
+  }
+
+  // =========================================================
+  // Audio decode helpers
+  // =========================================================
+  let audioCtx = null;
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function decodeAudioFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const ctx = ensureAudioCtx();
+        ctx.decodeAudioData(reader.result.slice(0), (audioBuffer) => {
+          resolve(audioBuffer);
+        }, (err) => reject(err || new Error('decodeAudioData failed')));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function toMono(audioBuffer) {
+    const ch = audioBuffer.numberOfChannels;
+    const len = audioBuffer.length;
+    const out = new Float32Array(len);
+    for (let c = 0; c < ch; c++) {
+      const data = audioBuffer.getChannelData(c);
+      for (let i = 0; i < len; i++) out[i] += data[i] / ch;
+    }
+    return out;
+  }
+
+  // =========================================================
+  // Core DSP helpers (zero-cross snap, window extraction, loop smoothing,
+  // normalization) — shared by both per-stage scanning and crossfades.
+  // =========================================================
+  function findNearestZeroCrossingUp(data, pos, radius) {
+    const n = data.length;
+    pos = Math.max(0, Math.min(n - 1, Math.round(pos)));
+    for (let d = 0; d <= radius; d++) {
+      const iPlus = pos + d;
+      if (iPlus > 0 && iPlus < n && data[iPlus - 1] <= 0 && data[iPlus] > 0) return iPlus;
+      const iMinus = pos - d;
+      if (iMinus > 0 && iMinus < n && data[iMinus - 1] <= 0 && data[iMinus] > 0) return iMinus;
+    }
+    return pos;
+  }
+
+  function extractWindow(data, startIdx, length) {
+    const n = data.length;
+    const out = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      const idx = startIdx + i;
+      out[i] = (idx >= 0 && idx < n) ? data[idx] : 0;
+    }
+    return out;
+  }
+
+  function applyLoopSmoothing(frame, amount01) {
+    // Crossfades the tail of the frame toward frame[0], so the last sample
+    // lands exactly on the first sample's value when looped (no click).
+    const n = frame.length;
+    const blendLen = Math.max(2, Math.floor(n * 0.25 * amount01));
+    if (blendLen < 2 || amount01 <= 0.001) return frame;
+    const out = frame.slice();
+    const head0 = frame[0];
+    for (let i = 0; i < blendLen; i++) {
+      const t = i / (blendLen - 1);
+      const tailIdx = n - blendLen + i;
+      out[tailIdx] = frame[tailIdx] * (1 - t) + head0 * t;
+    }
+    return out;
+  }
+
+  function normalizeFrame(frame) {
+    let peak = 0;
+    for (let i = 0; i < frame.length; i++) {
+      const av = Math.abs(frame[i]);
+      if (av > peak) peak = av;
+    }
+    if (peak > 0.0005) {
+      const g = 0.98 / peak;
+      const out = new Float32Array(frame.length);
+      for (let i = 0; i < frame.length; i++) out[i] = frame[i] * g;
+      return out;
+    }
+    return frame;
+  }
+
+  function crossfadeArrays(a, b, t) {
+    const n = a.length;
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = a[i] * (1 - t) + b[i] * t;
+    return out;
+  }
+
+  // Extract a raw (un-normalized, un-smoothed) frame from a stage's audio at
+  // a given progress 0..1 through that stage's trimmed range.
+  function extractRawFrameFromStage(stage, progress01, frameLen, zeroCrossSnap) {
+    if (!stage || !stage.monoData) return new Float32Array(frameLen);
+    const n = stage.monoData.length;
+    const startIdx = Math.floor((stage.trimStartPct / 100) * n);
+    const endIdx = Math.max(startIdx + 1, Math.floor((stage.trimEndPct / 100) * n));
+    const span = Math.max(1, endIdx - startIdx);
+    const centerPos = startIdx + Math.max(0, Math.min(1, progress01)) * span;
+    let winStart = Math.round(centerPos - frameLen / 2);
+    if (zeroCrossSnap) {
+      const searchRadius = Math.max(8, Math.floor(frameLen * 0.5));
+      winStart = findNearestZeroCrossingUp(stage.monoData, winStart, searchRadius);
+    }
+    return extractWindow(stage.monoData, winStart, frameLen);
+  }
+
+  // =========================================================
+  // Stage timeline (weights -> segment bounds) + multi-stage frame synthesis
+  // =========================================================
+  function buildStageBounds(stageList) {
+    const usable = stageList.filter(s => true); // keep order/index even if empty (handled later)
+    const totalWeight = usable.reduce((s, st) => s + Math.max(0.01, st.weight), 0);
+    let acc = 0;
+    return usable.map(st => {
+      const w = Math.max(0.01, st.weight) / totalWeight;
+      const start = acc; acc += w;
+      return { start, end: acc, stage: st };
+    });
+  }
+
+  function getSegmentAt(bounds, tGlobal) {
+    let segIndex = bounds.length - 1;
+    for (let i = 0; i < bounds.length; i++) {
+      if (tGlobal < bounds[i].end || i === bounds.length - 1) { segIndex = i; break; }
+    }
+    const seg = bounds[segIndex];
+    const span = Math.max(1e-6, seg.end - seg.start);
+    const localPos = Math.max(0, Math.min(1, (tGlobal - seg.start) / span));
+    return { segIndex, localPos };
+  }
+
+  // Compute one finished frame (normalized, loop-smoothed) for cycle `cycleIdx`
+  // out of `totalCycles`, given the current stage list + params.
+  function computeFrame(cycleIdx, totalCycles, opts) {
+    const { samplesPerCycle, zeroCrossSnap, smoothAmt, crossfadeFrac, frameOverrideLen } = opts;
+    const frameLen = frameOverrideLen || samplesPerCycle;
+
+    if (!stages.length) return new Float32Array(frameLen);
+
+    const bounds = buildStageBounds(stages);
+    const tGlobal = totalCycles <= 1 ? 0 : cycleIdx / (totalCycles - 1);
+    const { segIndex, localPos } = getSegmentAt(bounds, tGlobal);
+    const stage = bounds[segIndex].stage;
+
+    let frame = extractRawFrameFromStage(stage, localPos, frameLen, zeroCrossSnap);
+
+    if (segIndex > 0 && localPos < crossfadeFrac) {
+      const prevStage = bounds[segIndex - 1].stage;
+      const prevFrame = extractRawFrameFromStage(prevStage, 1.0, frameLen, zeroCrossSnap);
+      const blend = crossfadeFrac > 0.0001 ? (localPos / crossfadeFrac) : 1;
+      frame = crossfadeArrays(prevFrame, frame, blend);
+    }
+
+    frame = applyLoopSmoothing(frame, smoothAmt);
+    frame = normalizeFrame(frame);
+    return frame;
+  }
+
+  function currentOpts() {
+    return {
+      samplesPerCycle: state.samplesPerCycle,
+      zeroCrossSnap: state.zeroCrossSnap,
+      smoothAmt: state.smoothAmt,
+      crossfadeFrac: state.crossfadeFrac,
+    };
+  }
+
+  function computeFullTable(opts) {
+    const { samplesPerCycle, numCycles } = opts;
+    const full = new Float32Array(samplesPerCycle * (opts.numCycles || state.numCycles));
+    const nc = opts.numCycles || state.numCycles;
+    for (let c = 0; c < nc; c++) {
+      const f = computeFrame(c, nc, opts);
+      full.set(f, c * samplesPerCycle);
+    }
+    return full;
+  }
+
+  // =========================================================
+  // WAV encoding (mono, 16-bit / 24-bit PCM, or 32-bit float)
+  // =========================================================
+  function encodeWav(floatData, sampleRate, bitDepth) {
+    const numSamples = floatData.length;
+    const bytesPerSample = bitDepth === 32 ? 4 : (bitDepth === 24 ? 3 : 2);
+    const blockAlign = bytesPerSample; // mono
+    const dataSize = numSamples * bytesPerSample;
+    const headerSize = 44;
+    const buffer = new ArrayBuffer(headerSize + dataSize);
+    const view = new DataView(buffer);
+
+    function writeStr(offset, str) {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, bitDepth === 32 ? 3 : 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    if (bitDepth === 16) {
+      for (let i = 0; i < numSamples; i++) {
+        let s = Math.max(-1, Math.min(1, floatData[i]));
+        view.setInt16(offset, s < 0 ? s * 32768 : s * 32767, true);
+        offset += 2;
+      }
+    } else if (bitDepth === 24) {
+      for (let i = 0; i < numSamples; i++) {
+        let s = Math.max(-1, Math.min(1, floatData[i]));
+        let val = Math.round(s < 0 ? s * 8388608 : s * 8388607);
+        view.setUint8(offset, val & 0xff);
+        view.setUint8(offset + 1, (val >> 8) & 0xff);
+        view.setUint8(offset + 2, (val >> 16) & 0xff);
+        offset += 3;
+      }
+    } else {
+      for (let i = 0; i < numSamples; i++) {
+        view.setFloat32(offset, floatData[i], true);
+        offset += 4;
+      }
+    }
+    return new Uint8Array(buffer);
+  }
+
+  // =========================================================
+  // Minimal ZIP (store / no compression) writer — no deps
+  // =========================================================
+  function crc32(data) {
+    let c, crcTable = crc32.table;
+    if (!crcTable) {
+      crcTable = crc32.table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        crcTable[n] = c;
+      }
+    }
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < data.length; i++) crc = crcTable[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function strToBytes(str) {
+    const arr = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) arr[i] = str.charCodeAt(i) & 0xff;
+    return arr;
+  }
+
+  function dosDateTime() {
+    const d = new Date();
+    const dosTime = ((d.getHours() & 0x1f) << 11) | ((d.getMinutes() & 0x3f) << 5) | ((d.getSeconds() >> 1) & 0x1f);
+    const dosDate = (((d.getFullYear() - 1980) & 0x7f) << 9) | (((d.getMonth() + 1) & 0xf) << 5) | (d.getDate() & 0x1f);
+    return { dosTime, dosDate };
+  }
+
+  function buildZip(files) {
+    const { dosTime, dosDate } = dosDateTime();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach(f => {
+      const nameBytes = strToBytes(f.name);
+      const data = f.data;
+      const crc = crc32(data);
+      const size = data.length;
+
+      const local = new Uint8Array(30 + nameBytes.length);
+      const lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, dosTime, true);
+      lv.setUint16(12, dosDate, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, size, true);
+      lv.setUint32(22, size, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      local.set(nameBytes, 30);
+
+      localParts.push(local, data);
+      const localSize = local.length + data.length;
+
+      const central = new Uint8Array(46 + nameBytes.length);
+      const cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, dosTime, true);
+      cv.setUint16(14, dosDate, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, size, true);
+      cv.setUint32(24, size, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, offset, true);
+      central.set(nameBytes, 46);
+
+      centralParts.push(central);
+      offset += localSize;
+    });
+
+    const centralStart = offset;
+    let centralSize = 0;
+    centralParts.forEach(c => centralSize += c.length);
+
+    const end = new Uint8Array(22);
+    const ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, centralStart, true);
+    ev.setUint16(20, 0, true);
+
+    const totalSize = offset + centralSize + end.length;
+    const result = new Uint8Array(totalSize);
+    let pos = 0;
+    localParts.forEach(p => { result.set(p, pos); pos += p.length; });
+    centralParts.forEach(p => { result.set(p, pos); pos += p.length; });
+    result.set(end, pos);
+
+    return result;
+  }
+
+  function downloadBlob(bytes, filename, mime) {
+    const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function sanitizeFilename(name) {
+    return name.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 40) || 'table';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  // =========================================================
+  // Stage UI: render, add, delete, file upload, trim, weight
+  // =========================================================
+  const stagesWrap = document.getElementById('stagesWrap');
+  const miniWaveCacheCtx = new Map(); // stageId -> {canvas, ctx} for redraw on resize
+
+  function renderStages() {
+    stagesWrap.innerHTML = '';
+    miniWaveCacheCtx.clear();
+
+    stages.forEach((stage, idx) => {
+      const card = document.createElement('div');
+      card.className = 'audio-stage' + (stage.monoData ? '' : ' empty');
+
+      // --- top row: index, filename, delete ---
+      const top = document.createElement('div');
+      top.className = 'stage-top';
+      const topLeft = document.createElement('div');
+      topLeft.className = 'stage-top-left';
+      const numEl = document.createElement('span');
+      numEl.className = 'stage-num';
+      numEl.textContent = (idx + 1).toString().padStart(2, '0');
+      const nameEl = document.createElement('span');
+      nameEl.className = 'stage-filename' + (stage.monoData ? '' : ' placeholder');
+      nameEl.textContent = stage.monoData ? stage.fileName : '(no audio loaded)';
+      topLeft.appendChild(numEl);
+      topLeft.appendChild(nameEl);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'stage-del-btn';
+      delBtn.textContent = '×';
+      delBtn.title = 'Delete stage';
+      delBtn.disabled = stages.length <= 1;
+      delBtn.addEventListener('click', () => {
+        if (stages.length <= 1) {
+          showToast('At least 1 stage is required');
+          return;
+        }
+        stages.splice(idx, 1);
+        renderStages();
+        scheduleRender();
+        persistSettingsDebounced();
+      });
+
+      top.appendChild(topLeft);
+      top.appendChild(delBtn);
+      card.appendChild(top);
+
+      if (!stage.monoData) {
+        // --- drop zone for this empty stage ---
+        const drop = document.createElement('div');
+        drop.className = 'drop-zone';
+        drop.style.padding = '14px 10px';
+        if (stage.restoredPlaceholder) {
+          drop.innerHTML = `<div class="dz-title">Re-drop to restore: ${escapeHtml(stage.fileName)}</div><div class="dz-sub">Trim ${stage.trimStartPct.toFixed(0)}–${stage.trimEndPct.toFixed(0)}%, weight ${stage.weight} were saved — just re-add the same file</div>`;
+        } else {
+          drop.innerHTML = `<div class="dz-title">Click or drag & drop</div><div class="dz-sub">WAV / MP3 / OGG / M4A</div>`;
+        }
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'audio/*';
+        drop.appendChild(fileInput);
+
+        drop.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => {
+          if (e.target.files && e.target.files[0]) loadFileIntoStage(stage, e.target.files[0]);
+        });
+        ['dragenter', 'dragover'].forEach(evt => drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add('dragover'); }));
+        ['dragleave', 'drop'].forEach(evt => drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove('dragover'); }));
+        drop.addEventListener('drop', e => {
+          const file = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file) loadFileIntoStage(stage, file);
+        });
+
+        card.appendChild(drop);
+      } else {
+        // --- loaded: mini waveform + trim handles + weight ---
+        const body = document.createElement('div');
+        body.className = 'stage-body loaded';
+
+        const waveShell = document.createElement('div');
+        waveShell.className = 'mini-wave-shell';
+        const canvas = document.createElement('canvas');
+        const overlay = document.createElement('div');
+        overlay.className = 'selrange';
+        waveShell.appendChild(canvas);
+        waveShell.appendChild(overlay);
+        body.appendChild(waveShell);
+
+        const trimRow = document.createElement('div');
+        trimRow.className = 'row2';
+        trimRow.style.marginTop = '9px';
+
+        const startField = document.createElement('div');
+        startField.className = 'field';
+        startField.style.marginBottom = '0';
+        startField.innerHTML = `<div class="field-row"><label class="field-label">Start</label><span class="field-value start-val">${stage.trimStartPct.toFixed(0)}%</span></div>`;
+        const startSlider = document.createElement('input');
+        startSlider.type = 'range'; startSlider.min = '0'; startSlider.max = '100'; startSlider.step = '0.1'; startSlider.value = stage.trimStartPct;
+        startField.appendChild(startSlider);
+
+        const endField = document.createElement('div');
+        endField.className = 'field';
+        endField.style.marginBottom = '0';
+        endField.innerHTML = `<div class="field-row"><label class="field-label">End</label><span class="field-value end-val">${stage.trimEndPct.toFixed(0)}%</span></div>`;
+        const endSlider = document.createElement('input');
+        endSlider.type = 'range'; endSlider.min = '0'; endSlider.max = '100'; endSlider.step = '0.1'; endSlider.value = stage.trimEndPct;
+        endField.appendChild(endSlider);
+
+        trimRow.appendChild(startField);
+        trimRow.appendChild(endField);
+        body.appendChild(trimRow);
+
+        function updateOverlay() {
+          overlay.style.left = stage.trimStartPct + '%';
+          overlay.style.width = Math.max(0, stage.trimEndPct - stage.trimStartPct) + '%';
+        }
+        updateOverlay();
+
+        startSlider.addEventListener('input', () => {
+          let v = parseFloat(startSlider.value);
+          if (v > stage.trimEndPct - 0.5) v = Math.max(0, stage.trimEndPct - 0.5);
+          stage.trimStartPct = v;
+          startSlider.value = v;
+          startField.querySelector('.start-val').textContent = v.toFixed(0) + '%';
+          updateOverlay();
+          scheduleRender();
+          persistSettingsDebounced();
+        });
+        endSlider.addEventListener('input', () => {
+          let v = parseFloat(endSlider.value);
+          if (v < stage.trimStartPct + 0.5) v = Math.min(100, stage.trimStartPct + 0.5);
+          stage.trimEndPct = v;
+          endSlider.value = v;
+          endField.querySelector('.end-val').textContent = v.toFixed(0) + '%';
+          updateOverlay();
+          scheduleRender();
+          persistSettingsDebounced();
+        });
+
+        // weight slider (only meaningful with 2+ stages, but harmless otherwise)
+        const weightRow = document.createElement('div');
+        weightRow.className = 'stage-weight-row';
+        const wLabel = document.createElement('label');
+        wLabel.textContent = 'Stage Weight';
+        const wSlider = document.createElement('input');
+        wSlider.type = 'range'; wSlider.min = '1'; wSlider.max = '10'; wSlider.step = '1'; wSlider.value = stage.weight;
+        wSlider.style.flex = '1';
+        const wVal = document.createElement('span');
+        wVal.className = 'field-value';
+        wVal.style.minWidth = '24px';
+        wVal.textContent = stage.weight;
+        wSlider.addEventListener('input', () => {
+          stage.weight = parseFloat(wSlider.value);
+          wVal.textContent = stage.weight;
+          scheduleRender();
+          persistSettingsDebounced();
+        });
+        weightRow.appendChild(wLabel);
+        weightRow.appendChild(wSlider);
+        weightRow.appendChild(wVal);
+        body.appendChild(weightRow);
+
+        // replace-file option
+        const replaceRow = document.createElement('div');
+        replaceRow.style.marginTop = '9px';
+        const replaceBtn = document.createElement('button');
+        replaceBtn.className = 'play-btn';
+        replaceBtn.style.width = '100%';
+        replaceBtn.innerHTML = '<span class="ico">⟲</span> Replace audio file';
+        const replaceInput = document.createElement('input');
+        replaceInput.type = 'file';
+        replaceInput.accept = 'audio/*';
+        replaceInput.style.display = 'none';
+        replaceBtn.addEventListener('click', () => replaceInput.click());
+        replaceInput.addEventListener('change', e => {
+          if (e.target.files && e.target.files[0]) loadFileIntoStage(stage, e.target.files[0]);
+        });
+        replaceRow.appendChild(replaceBtn);
+        replaceRow.appendChild(replaceInput);
+        body.appendChild(replaceRow);
+
+        card.appendChild(body);
+
+        // draw mini waveform once appended (after layout)
+        requestAnimationFrame(() => drawStageMiniWave(stage, canvas));
+        miniWaveCacheCtx.set(stage.id, canvas);
+      }
+
+      stagesWrap.appendChild(card);
+    });
+  }
+
+  function drawStageMiniWave(stage, canvas) {
+    if (!stage.monoData) return;
+    const rect = fitCanvas(canvas);
+    const w = rect.width, h = rect.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(94,230,168,0.16)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+
+    const data = stage.monoData;
+    const n = data.length;
+    const cols = Math.max(1, Math.floor(w));
+    ctx.fillStyle = '#5ee6a8';
+    for (let x = 0; x < cols; x++) {
+      const start = Math.floor((x / cols) * n);
+      const end = Math.max(start + 1, Math.floor(((x + 1) / cols) * n));
+      let mn = 1, mx = -1;
+      for (let i = start; i < end && i < n; i++) {
+        const v = data[i];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+      const y0 = h / 2 - mx * (h * 0.46);
+      const y1 = h / 2 - mn * (h * 0.46);
+      ctx.fillRect(x, y0, 1, Math.max(1, y1 - y0));
+    }
+  }
+
+  function loadFileIntoStage(stage, file) {
+    showToast('Decoding…');
+    decodeAudioFile(file).then(audioBuffer => {
+      stage.monoData = toMono(audioBuffer);
+      stage.sourceSampleRate = audioBuffer.sampleRate;
+      stage.fileName = file.name;
+      // If this stage was restored from saved settings (metadata only, no
+      // audio yet), keep its previously saved trim/weight instead of
+      // resetting them — that's the whole point of restoring metadata.
+      if (!stage.restoredPlaceholder) {
+        stage.trimStartPct = 0;
+        stage.trimEndPct = 100;
+      }
+      stage.restoredPlaceholder = false;
+      renderStages();
+      scheduleRender();
+      persistSettingsDebounced();
+      showToast(`Loaded "${file.name}"`);
+    }).catch(err => {
+      console.error(err);
+      showToast('Failed to load (check file format)');
+    });
+  }
+
+  document.getElementById('addStageBtn').addEventListener('click', () => {
+    if (stages.length >= 8) {
+      showToast('Up to 8 stages max');
+      return;
+    }
+    stages.push(makeEmptyStage());
+    renderStages();
+    persistSettingsDebounced();
+  });
+
+  // =========================================================
+  // Canvas sizing helper
+  // =========================================================
+  function fitCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return rect;
+  }
+
+  // =========================================================
+  // Parameter bindings
+  // =========================================================
+  function bindRange(id, valId, fmt, onChange) {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      valEl.textContent = fmt(v);
+      onChange(v);
+      scheduleRender();
+      persistSettingsDebounced();
+    });
+    valEl.textContent = fmt(parseFloat(el.value));
+  }
+
+  bindRange('smoothSlider', 'smoothVal', v => v + '%', v => state.smoothAmt = v / 100);
+  bindRange('crossfadeSlider', 'crossfadeVal', v => v + '%', v => state.crossfadeFrac = v / 100);
+
+  document.getElementById('zeroCrossCheck').addEventListener('change', e => {
+    state.zeroCrossSnap = e.target.checked;
+    scheduleRender();
+  });
+
+  const spcSeg = document.getElementById('spcSeg');
+  spcSeg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      spcSeg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.samplesPerCycle = parseInt(btn.dataset.v, 10);
+      document.getElementById('spcVal').textContent = state.samplesPerCycle;
+      scheduleRender();
+      updateSpecs();
+    });
+  });
+
+  const cyclesSlider = document.getElementById('cyclesSlider');
+  cyclesSlider.addEventListener('input', () => {
+    state.numCycles = parseInt(cyclesSlider.value, 10);
+    document.getElementById('cyclesVal').textContent = state.numCycles;
+    syncScrubRange();
+    scheduleRender();
+    updateSpecs();
+  });
+
+  document.getElementById('srSelect').addEventListener('change', e => {
+    state.sampleRate = parseInt(e.target.value, 10);
+    updateSpecs();
+  });
+  document.getElementById('bitSelect').addEventListener('change', e => {
+    state.bitDepth = parseInt(e.target.value, 10);
+    updateSpecs();
+  });
+
+  function syncScrubRange() {
+    const scrubSlider = document.getElementById('scrubSlider');
+    scrubSlider.max = Math.max(0, state.numCycles - 1);
+    if (state.scrub > state.numCycles - 1) {
+      state.scrub = state.numCycles - 1;
+      scrubSlider.value = state.scrub;
+    }
+    document.getElementById('cycleReadout').textContent = `cycle ${state.scrub + 1} / ${state.numCycles}`;
+  }
+
+  document.getElementById('scrubSlider').addEventListener('input', e => {
+    state.scrub = parseInt(e.target.value, 10);
+    document.getElementById('cycleReadout').textContent = `cycle ${state.scrub + 1} / ${state.numCycles}`;
+    const pct = state.numCycles > 1 ? (state.scrub / (state.numCycles - 1)) * 100 : 0;
+    document.getElementById('posReadout').textContent = pct.toFixed(1) + '%';
+    document.getElementById('scrubValue').textContent = state.scrub;
+    scheduleScopeOnly();
+  });
+
+  // =========================================================
+  // Scope (single frame) + stack (whole table overview) rendering
+  // =========================================================
+  const scopeCanvas = document.getElementById('scopeCanvas');
+  const stackCanvas = document.getElementById('stackCanvas');
+  const scopeCtx = scopeCanvas.getContext('2d');
+  const stackCtx = stackCanvas.getContext('2d');
+
+  function drawWavePath(ctx, data, w, h) {
+    ctx.beginPath();
+    const n = data.length;
+    const step = Math.max(1, Math.floor(n / Math.max(1, Math.floor(w))));
+    let first = true;
+    for (let i = 0; i < n; i += step) {
+      const x = (i / n) * w;
+      const y = h / 2 - data[i] * (h * 0.42);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    const lastX = w;
+    const lastY = h / 2 - data[n - 1] * (h * 0.42);
+    ctx.lineTo(lastX, lastY);
+  }
+
+  function drawScope() {
+    const rect = fitCanvas(scopeCanvas);
+    const w = rect.width, h = rect.height;
+    scopeCtx.clearRect(0, 0, w, h);
+
+    const previewLen = Math.min(state.samplesPerCycle, 4096);
+    const frame = computeFrame(state.scrub, state.numCycles, Object.assign({}, currentOpts(), { frameOverrideLen: previewLen }));
+
+    scopeCtx.strokeStyle = 'rgba(94,230,168,0.18)';
+    scopeCtx.lineWidth = 1;
+    scopeCtx.beginPath();
+    scopeCtx.moveTo(0, h / 2);
+    scopeCtx.lineTo(w, h / 2);
+    scopeCtx.stroke();
+
+    scopeCtx.lineJoin = 'round';
+    scopeCtx.strokeStyle = 'rgba(94,230,168,0.25)';
+    scopeCtx.lineWidth = 5;
+    drawWavePath(scopeCtx, frame, w, h);
+    scopeCtx.stroke();
+
+    scopeCtx.strokeStyle = '#5ee6a8';
+    scopeCtx.lineWidth = 1.6;
+    drawWavePath(scopeCtx, frame, w, h);
+    scopeCtx.stroke();
+
+    let peak = 0, sumSq = 0;
+    for (let i = 0; i < frame.length; i++) {
+      const av = Math.abs(frame[i]);
+      if (av > peak) peak = av;
+      sumSq += frame[i] * frame[i];
+    }
+    const rms = Math.sqrt(sumSq / frame.length);
+    document.getElementById('peakReadout').textContent = peak.toFixed(2);
+    document.getElementById('rmsReadout').textContent = rms.toFixed(2);
+  }
+
+  function drawStack() {
+    const rect = fitCanvas(stackCanvas);
+    const w = rect.width, h = rect.height;
+    stackCtx.clearRect(0, 0, w, h);
+
+    if (!stages.some(s => s.monoData)) {
+      stackCtx.fillStyle = 'rgba(255,255,255,0.06)';
+      stackCtx.fillRect(0, 0, w, h);
+      return;
+    }
+
+    const previewLen = 256;
+    const opts = Object.assign({}, currentOpts(), { frameOverrideLen: previewLen });
+    const imgW = Math.max(1, Math.floor(w));
+    const imgH = Math.max(1, Math.floor(h));
+    const imgData = stackCtx.createImageData(imgW, imgH);
+    const cols = imgData.width, rowsTotal = imgData.height;
+    const rowCap = Math.min(rowsTotal, 200);
+
+    const rowCache = new Array(rowCap);
+    for (let r = 0; r < rowCap; r++) {
+      const cycleIdx = Math.min(state.numCycles - 1, Math.floor((r / rowCap) * state.numCycles));
+      rowCache[r] = computeFrame(cycleIdx, state.numCycles, opts);
+    }
+
+    for (let ry = 0; ry < rowsTotal; ry++) {
+      const r = Math.min(rowCap - 1, Math.floor((ry / rowsTotal) * rowCap));
+      const frame = rowCache[r];
+      for (let cx = 0; cx < cols; cx++) {
+        const sampIdx = Math.floor((cx / cols) * frame.length);
+        const v = frame[sampIdx];
+        const amp = Math.min(1, Math.abs(v));
+        let r2, g2, b2;
+        if (v >= 0) { r2 = 20 + amp * 235; g2 = 20 + amp * 110; b2 = 10 + amp * 20; }
+        else { r2 = 10 + amp * 20; g2 = 30 + amp * 200; b2 = 30 + amp * 160; }
+        const idx = (ry * cols + cx) * 4;
+        imgData.data[idx] = r2; imgData.data[idx+1] = g2; imgData.data[idx+2] = b2; imgData.data[idx+3] = 255;
+      }
+    }
+    stackCtx.putImageData(imgData, 0, 0);
+  }
+
+  // =========================================================
+  // Specs panel
+  // =========================================================
+  function updateSpecs() {
+    const spc = state.samplesPerCycle;
+    const nc = state.numCycles;
+    const totalSamples = spc * nc;
+    const bytesPerSample = state.bitDepth === 32 ? 4 : (state.bitDepth === 24 ? 3 : 2);
+    const fileBytes = 44 + totalSamples * bytesPerSample;
+
+    document.getElementById('specLen').textContent = totalSamples.toLocaleString() + ' smp';
+    const ms = (spc / state.sampleRate) * 1000;
+    document.getElementById('specDur').textContent = ms.toFixed(2) + ' ms/cycle';
+    document.getElementById('specSize').textContent = formatBytes(fileBytes);
+
+    const checkEl = document.getElementById('specCheck');
+    const okSpc = spc >= 512 && spc <= 16384;
+    const okCyc = nc >= 2 && nc <= 2048;
+    const okSr = state.sampleRate >= 22050 && state.sampleRate <= 96000;
+    if (okSpc && okCyc && okSr) {
+      checkEl.textContent = 'OK';
+      checkEl.classList.remove('warn'); checkEl.classList.add('ok');
+    } else {
+      checkEl.textContent = 'Out of range';
+      checkEl.classList.remove('ok'); checkEl.classList.add('warn');
+    }
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  // =========================================================
+  // Audio preview (Web Audio API) — listen to the CURRENT (uncommitted)
+  // wavetable being edited, and to committed tables in the list below.
+  // =========================================================
+  let activeVoice = null;
+  let scanState = null;
+
+  function makeCycleBuffer(ctx, cycleData) {
+    const buffer = ctx.createBuffer(1, cycleData.length, ctx.sampleRate);
+    buffer.copyToChannel(cycleData, 0);
+    return buffer;
+  }
+
+  function playFrameAtPitch(frameData, noteHz) {
+    const ctx = ensureAudioCtx();
+    stopVoice();
+    const buffer = makeCycleBuffer(ctx, frameData);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const naturalFreq = ctx.sampleRate / frameData.length;
+    src.playbackRate.value = Math.max(0.01, noteHz / naturalFreq);
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(gain).connect(ctx.destination);
+    src.start();
+    const now = ctx.currentTime;
+    gain.gain.linearRampToValueAtTime(0.45, now + 0.025);
+    activeVoice = { src, gain };
+  }
+
+  function stopVoice() {
+    if (!activeVoice) return;
+    const { src, gain } = activeVoice;
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.035);
+      src.stop(now + 0.05);
+    } catch (e) { /* already stopped */ }
+    activeVoice = null;
+  }
+
+  // --- Play current scope frame (the live, uncommitted table) ---
+  const playCycleBtn = document.getElementById('playCycleBtn');
+  playCycleBtn.addEventListener('click', () => {
+    if (activeVoice && !scanState) {
+      stopVoice();
+      playCycleBtn.classList.remove('playing');
+      playCycleBtn.innerHTML = '<span class="ico">▶</span> Play This Cycle';
+      return;
+    }
+    if (!stages.some(s => s.monoData)) {
+      showToast('Load an audio stage first');
+      return;
+    }
+    stopScan();
+    const noteHz = parseFloat(document.getElementById('noteSelect').value);
+    const previewLen = Math.min(state.samplesPerCycle, 4096);
+    const frame = computeFrame(state.scrub, state.numCycles, Object.assign({}, currentOpts(), { frameOverrideLen: previewLen }));
+    playFrameAtPitch(frame, noteHz);
+    playCycleBtn.classList.add('playing');
+    playCycleBtn.innerHTML = '<span class="ico">■</span> Stop';
+  });
+
+  // --- Scan through the whole CURRENT table while playing ---
+  const scanBtn = document.getElementById('scanBtn');
+  const scrubSliderEl = document.getElementById('scrubSlider');
+
+  function startScan() {
+    stopVoice();
+    const ctx = ensureAudioCtx();
+    const noteHz = parseFloat(document.getElementById('noteSelect').value);
+    const durationSec = parseFloat(document.getElementById('scanDurSlider').value);
+    const startTime = performance.now();
+    const previewLen = Math.min(state.samplesPerCycle, 4096);
+    const opts = Object.assign({}, currentOpts(), { frameOverrideLen: previewLen });
+
+    let lastCycleIdx = -1;
+    function refreshVoiceForCycle(idx) {
+      if (idx === lastCycleIdx) return;
+      lastCycleIdx = idx;
+      const frame = computeFrame(idx, state.numCycles, opts);
+      const ctx2 = ensureAudioCtx();
+      const buffer = makeCycleBuffer(ctx2, frame);
+      const src = ctx2.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      const naturalFreq = ctx2.sampleRate / frame.length;
+      src.playbackRate.value = Math.max(0.01, noteHz / naturalFreq);
+      const gain = ctx2.createGain();
+      gain.gain.value = 0;
+      src.connect(gain).connect(ctx2.destination);
+      src.start();
+      const now = ctx2.currentTime;
+      gain.gain.linearRampToValueAtTime(0.45, now + 0.04);
+
+      const prevVoice = activeVoice;
+      activeVoice = { src, gain };
+      if (prevVoice) {
+        const pn = ctx2.currentTime;
+        try {
+          prevVoice.gain.gain.cancelScheduledValues(pn);
+          prevVoice.gain.gain.setValueAtTime(prevVoice.gain.gain.value, pn);
+          prevVoice.gain.gain.linearRampToValueAtTime(0, pn + 0.05);
+          prevVoice.src.stop(pn + 0.07);
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    function tick() {
+      if (!scanState) return;
+      const elapsed = (performance.now() - startTime) / 1000;
+      const t = Math.min(1, elapsed / durationSec);
+      const cycleIdx = Math.round(t * (state.numCycles - 1));
+      state.scrub = cycleIdx;
+      scrubSliderEl.value = cycleIdx;
+      document.getElementById('cycleReadout').textContent = `cycle ${cycleIdx + 1} / ${state.numCycles}`;
+      document.getElementById('scrubValue').textContent = cycleIdx;
+      const pct = state.numCycles > 1 ? (cycleIdx / (state.numCycles - 1)) * 100 : 0;
+      document.getElementById('posReadout').textContent = pct.toFixed(1) + '%';
+      drawScope();
+
+      if (Math.floor(elapsed * 12) !== Math.floor((elapsed - 0.02) * 12)) {
+        refreshVoiceForCycle(cycleIdx);
+      }
+
+      if (t >= 1) { stopScan(); return; }
+      scanState.rafId = requestAnimationFrame(tick);
+    }
+
+    scanState = { rafId: null };
+    refreshVoiceForCycle(0);
+    scanState.rafId = requestAnimationFrame(tick);
+  }
+
+  function stopScan() {
+    if (scanState && scanState.rafId) cancelAnimationFrame(scanState.rafId);
+    scanState = null;
+    stopVoice();
+    scanBtn.classList.remove('playing');
+    scanBtn.innerHTML = '<span class="ico">⟳</span> Scan Through Table';
+  }
+
+  scanBtn.addEventListener('click', () => {
+    if (scanState) { stopScan(); return; }
+    if (!stages.some(s => s.monoData)) {
+      showToast('Load an audio stage first');
+      return;
+    }
+    playCycleBtn.classList.remove('playing');
+    playCycleBtn.innerHTML = '<span class="ico">▶</span> Play This Cycle';
+    scanBtn.classList.add('playing');
+    scanBtn.innerHTML = '<span class="ico">■</span> Stop';
+    startScan();
+  });
+
+  bindRange('scanDurSlider', 'scanDurVal', v => v.toFixed(1) + 's', () => {});
+
+  // --- Play a committed table from the export list ---
+  let tablePlayVoice = null;
+  let tablePlayingId = null;
+
+  function playCommittedTable(table, btnEl) {
+    if (tablePlayingId === table._uid) {
+      stopTablePlay();
+      return;
+    }
+    stopTablePlay();
+    stopVoice();
+    stopScan();
+    const ctx = ensureAudioCtx();
+    const noteHz = parseFloat(document.getElementById('noteSelect').value);
+    // play the middle frame of the committed table as a representative sample
+    const midIdx = Math.floor(table.numCycles / 2);
+    const frame = table.floatData.subarray(midIdx * table.samplesPerCycle, (midIdx + 1) * table.samplesPerCycle);
+    const buffer = ctx.createBuffer(1, frame.length, ctx.sampleRate);
+    buffer.copyToChannel(new Float32Array(frame), 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const naturalFreq = ctx.sampleRate / frame.length;
+    src.playbackRate.value = Math.max(0.01, noteHz / naturalFreq);
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(gain).connect(ctx.destination);
+    src.start();
+    gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + 0.025);
+    tablePlayVoice = { src, gain };
+    tablePlayingId = table._uid;
+    if (btnEl) { btnEl.textContent = '■'; btnEl.classList.add('playing'); }
+  }
+
+  function stopTablePlay() {
+    if (tablePlayVoice) {
+      const { src, gain } = tablePlayVoice;
+      const ctx = audioCtx;
+      const now = ctx.currentTime;
+      try {
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.035);
+        src.stop(now + 0.05);
+      } catch (e) {}
+    }
+    tablePlayVoice = null;
+    tablePlayingId = null;
+    document.querySelectorAll('.trow .tplay').forEach(b => { b.textContent = '▶'; b.classList.remove('playing'); });
+  }
+
+  // =========================================================
+  // Table list (queued for export)
+  // =========================================================
+  const tableListEl = document.getElementById('tableList');
+  let tableUidCounter = 0;
+
+  function renderTableList() {
+    tableListEl.innerHTML = '';
+    state.tables.forEach((t, idx) => {
+      const row = document.createElement('div');
+      row.className = 'trow';
+
+      const playBtn = document.createElement('button');
+      playBtn.className = 'tplay' + (tablePlayingId === t._uid ? ' playing' : '');
+      playBtn.textContent = tablePlayingId === t._uid ? '■' : '▶';
+      playBtn.title = 'Audition (loops the middle frame)';
+      playBtn.addEventListener('click', () => playCommittedTable(t, playBtn));
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'tname';
+      nameEl.textContent = t.name + '.wav';
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'tmeta';
+      metaEl.textContent = `${t.numCycles}c × ${t.samplesPerCycle}s · ${t.bitDepth}b`;
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'tdel';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => {
+        if (tablePlayingId === t._uid) stopTablePlay();
+        state.tables.splice(idx, 1);
+        renderTableList();
+        updateTableCountTag();
+      });
+
+      row.appendChild(playBtn);
+      row.appendChild(nameEl);
+      row.appendChild(metaEl);
+      row.appendChild(delBtn);
+      tableListEl.appendChild(row);
+    });
+  }
+
+  function updateTableCountTag() {
+    document.getElementById('tableCountTag').textContent = `${state.tables.length} table${state.tables.length === 1 ? '' : 's'}`;
+  }
+
+  document.getElementById('addTableBtn').addEventListener('click', () => {
+    if (!stages.some(s => s.monoData)) {
+      showToast('Load an audio stage first');
+      return;
+    }
+    if (state.tables.length >= 512) {
+      showToast('Max 512 files per folder');
+      return;
+    }
+    const btn = document.getElementById('addTableBtn');
+    const nameInput = document.getElementById('currentTableName');
+    let name = sanitizeFilename(nameInput.value.trim() || `table_${(state.tables.length + 1).toString().padStart(2, '0')}`);
+    let finalName = name;
+    let counter = 2;
+    const existing = new Set(state.tables.map(t => t.name));
+    while (existing.has(finalName)) { finalName = name + '_' + counter; counter++; }
+
+    const totalSamples = state.samplesPerCycle * state.numCycles;
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = 'Computing…';
+
+    setTimeout(() => {
+      const floatData = computeFullTable(Object.assign({}, currentOpts(), { numCycles: state.numCycles }));
+      tableUidCounter++;
+      state.tables.push({
+        _uid: tableUidCounter,
+        name: finalName,
+        samplesPerCycle: state.samplesPerCycle,
+        numCycles: state.numCycles,
+        sampleRate: state.sampleRate,
+        bitDepth: state.bitDepth,
+        floatData,
+      });
+      renderTableList();
+      updateTableCountTag();
+
+      const m = finalName.match(/^(.*?)(\d+)$/);
+      if (m) {
+        const num = (parseInt(m[2], 10) + 1).toString().padStart(m[2].length, '0');
+        nameInput.value = m[1] + num;
+      } else {
+        nameInput.value = finalName + '_2';
+      }
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      showToast(`Added "${finalName}" to the table list`);
+    }, totalSamples > 2_000_000 ? 30 : 0);
+  });
+
+  document.getElementById('clearTablesBtn').addEventListener('click', () => {
+    if (!state.tables.length) return;
+    stopTablePlay();
+    state.tables = [];
+    renderTableList();
+    updateTableCountTag();
+    showToast('Cleared all tables');
+  });
+
+  document.getElementById('exportZipBtn').addEventListener('click', () => {
+    if (!state.tables.length) {
+      showToast('Add at least one table first');
+      return;
+    }
+    const first = state.tables[0];
+    const mismatched = state.tables.some(t =>
+      t.samplesPerCycle !== first.samplesPerCycle || t.numCycles !== first.numCycles
+    );
+    if (mismatched) {
+      showToast('Warning: tables have mismatched cycle/sample counts');
+    }
+
+    const btn = document.getElementById('exportZipBtn');
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = 'Building ZIP…';
+
+    setTimeout(() => {
+      const libRaw = document.getElementById('libName').value.trim() || 'MyWavetables';
+      const lib = sanitizeFilename(libRaw);
+      const basePath = `Oscillators/Wavetables/${lib}/`;
+
+      const files = [];
+      state.tables.forEach(t => {
+        const wavBytes = encodeWav(t.floatData, t.sampleRate, t.bitDepth);
+        files.push({ name: basePath + t.name + '.wav', data: wavBytes });
+      });
+
+      const formatJson = JSON.stringify({
+        formatInfo: {
+          numSamplesPerSingleCycle: first.samplesPerCycle,
+          numSingleCycles: first.numCycles,
+        }
+      }, null, 4);
+      files.push({ name: basePath + 'format.json', data: strToBytes(formatJson) });
+
+      const zipBytes = buildZip(files);
+      downloadBlob(zipBytes, `${lib}_wavetables.zip`, 'application/zip');
+      showToast(`Exported ${lib}_wavetables.zip`);
+
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }, 20);
+  });
+
+  // =========================================================
+  // Toast
+  // =========================================================
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  // =========================================================
+  // Render scheduling
+  // =========================================================
+  let rafPending = false;
+  function scheduleRender() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      drawScope();
+      drawStack();
+      updateSpecs();
+    });
+  }
+  let rafScopePending = false;
+  function scheduleScopeOnly() {
+    if (rafScopePending) return;
+    rafScopePending = true;
+    requestAnimationFrame(() => {
+      rafScopePending = false;
+      drawScope();
+    });
+  }
+
+  // =========================================================
+  // Settings persistence: localStorage (preferred) with a cookie fallback,
+  // plus JSON export/import. Audio data itself is never persisted — only
+  // lightweight stage metadata (filename, trim, weight) and the global
+  // conversion/export parameters.
+  // =========================================================
+  const SETTINGS_KEY = 'wavebench_audio_settings_v1';
+  const SETTINGS_VERSION = 1;
+  let storageBackend = 'none'; // 'localStorage' | 'cookie' | 'none'
+
+  function cookieSet(name, value, days) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/; SameSite=Lax';
+  }
+  function cookieGet(name) {
+    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function detectStorageBackend() {
+    try {
+      const testKey = '__wb_test__';
+      window.localStorage.setItem(testKey, '1');
+      window.localStorage.removeItem(testKey);
+      return 'localStorage';
+    } catch (e) { /* fall through */ }
+    try {
+      cookieSet('__wb_test__', '1', 1);
+      const ok = cookieGet('__wb_test__') === '1';
+      if (ok) {
+        document.cookie = '__wb_test__=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        return 'cookie';
+      }
+    } catch (e) { /* fall through */ }
+    return 'none';
+  }
+
+  function updateAutosaveStatusUI() {
+    const el = document.getElementById('autosaveStatus');
+    if (!el) return;
+    if (storageBackend === 'localStorage') el.textContent = 'autosave: on (localStorage)';
+    else if (storageBackend === 'cookie') el.textContent = 'autosave: on (cookie)';
+    else el.textContent = 'autosave: unavailable (use JSON export instead)';
+  }
+
+  function collectSettings() {
+    return {
+      version: SETTINGS_VERSION,
+      samplesPerCycle: state.samplesPerCycle,
+      numCycles: state.numCycles,
+      sampleRate: state.sampleRate,
+      bitDepth: state.bitDepth,
+      zeroCrossSnap: state.zeroCrossSnap,
+      smoothAmt: state.smoothAmt,
+      crossfadeFrac: state.crossfadeFrac,
+      libName: document.getElementById('libName').value,
+      currentTableName: document.getElementById('currentTableName').value,
+      noteHz: document.getElementById('noteSelect').value,
+      scanDuration: document.getElementById('scanDurSlider').value,
+      stages: stages.map(s => ({
+        fileName: s.fileName || '',
+        trimStartPct: s.trimStartPct,
+        trimEndPct: s.trimEndPct,
+        weight: s.weight,
+      })),
+    };
+  }
+
+  function clampNum(v, min, max, fallback) {
+    if (typeof v !== 'number' || !isFinite(v)) return fallback;
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function applySettingsObject(settings) {
+    if (!settings || typeof settings !== 'object') return false;
+
+    if (typeof settings.samplesPerCycle === 'number') {
+      state.samplesPerCycle = Math.round(clampNum(settings.samplesPerCycle, 512, 16384, state.samplesPerCycle));
+      document.getElementById('spcVal').textContent = state.samplesPerCycle;
+      document.querySelectorAll('#spcSeg button').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.v, 10) === state.samplesPerCycle);
+      });
+    }
+    if (typeof settings.numCycles === 'number') {
+      state.numCycles = Math.round(clampNum(settings.numCycles, 2, 2048, state.numCycles));
+      document.getElementById('cyclesSlider').value = state.numCycles;
+      document.getElementById('cyclesVal').textContent = state.numCycles;
+    }
+    if (typeof settings.sampleRate === 'number') {
+      const allowedRates = [22050, 44100, 48000, 96000];
+      state.sampleRate = allowedRates.includes(settings.sampleRate) ? settings.sampleRate : state.sampleRate;
+      document.getElementById('srSelect').value = String(state.sampleRate);
+    }
+    if (typeof settings.bitDepth === 'number') {
+      const allowedDepths = [16, 24, 32];
+      state.bitDepth = allowedDepths.includes(settings.bitDepth) ? settings.bitDepth : state.bitDepth;
+      document.getElementById('bitSelect').value = String(state.bitDepth);
+    }
+    if (typeof settings.zeroCrossSnap === 'boolean') {
+      state.zeroCrossSnap = settings.zeroCrossSnap;
+      document.getElementById('zeroCrossCheck').checked = state.zeroCrossSnap;
+    }
+    if (typeof settings.smoothAmt === 'number') {
+      state.smoothAmt = clampNum(settings.smoothAmt, 0, 1, state.smoothAmt);
+      const pct = Math.round(state.smoothAmt * 100);
+      document.getElementById('smoothSlider').value = pct;
+      document.getElementById('smoothVal').textContent = pct + '%';
+    }
+    if (typeof settings.crossfadeFrac === 'number') {
+      state.crossfadeFrac = clampNum(settings.crossfadeFrac, 0.05, 0.9, state.crossfadeFrac);
+      const pct = Math.round(state.crossfadeFrac * 100);
+      document.getElementById('crossfadeSlider').value = pct;
+      document.getElementById('crossfadeVal').textContent = pct + '%';
+    }
+    if (typeof settings.libName === 'string' && settings.libName) {
+      document.getElementById('libName').value = settings.libName;
+    }
+    if (typeof settings.currentTableName === 'string' && settings.currentTableName) {
+      document.getElementById('currentTableName').value = settings.currentTableName;
+    }
+    if (settings.noteHz) {
+      document.getElementById('noteSelect').value = settings.noteHz;
+    }
+    if (settings.scanDuration) {
+      const sd = document.getElementById('scanDurSlider');
+      sd.value = settings.scanDuration;
+      document.getElementById('scanDurVal').textContent = parseFloat(settings.scanDuration).toFixed(1) + 's';
+    }
+
+    if (Array.isArray(settings.stages) && settings.stages.length) {
+      stages = settings.stages.slice(0, 8).map(sData => makeEmptyStage(sData));
+      renderStages();
+    }
+
+    syncScrubRange();
+    updateSpecs();
+    scheduleRender();
+    return true;
+  }
+
+  function persistSettings() {
+    if (storageBackend === 'none') return;
+    const json = JSON.stringify(collectSettings());
+    try {
+      if (storageBackend === 'localStorage') {
+        window.localStorage.setItem(SETTINGS_KEY, json);
+      } else if (storageBackend === 'cookie') {
+        // Cookies cap out around ~4KB per entry. If settings have grown
+        // past that (e.g. many stages with long filenames), skip silently
+        // rather than writing a truncated, corrupt value — JSON export is
+        // the reliable path for larger setups on a cookie-only browser.
+        if (json.length > 3800) {
+          if (!persistSettings._warnedCookieSize) {
+            persistSettings._warnedCookieSize = true;
+            showToast('Settings too large for cookie storage — use JSON export to save them');
+          }
+          return;
+        }
+        cookieSet(SETTINGS_KEY, json, 365);
+      }
+    } catch (e) {
+      // Storage became unavailable mid-session (e.g. quota, private mode
+      // toggled) — degrade gracefully rather than throwing.
+      storageBackend = 'none';
+      updateAutosaveStatusUI();
+    }
+  }
+
+  let persistTimer = null;
+  function persistSettingsDebounced() {
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(persistSettings, 400);
+  }
+
+  function loadPersistedSettings() {
+    let json = null;
+    try {
+      if (storageBackend === 'localStorage') json = window.localStorage.getItem(SETTINGS_KEY);
+      else if (storageBackend === 'cookie') json = cookieGet(SETTINGS_KEY);
+    } catch (e) { json = null; }
+    if (!json) return null;
+    try { return JSON.parse(json); } catch (e) { return null; }
+  }
+
+  // --- Settings panel buttons ---
+  document.getElementById('exportSettingsBtn').addEventListener('click', () => {
+    const settings = collectSettings();
+    const json = JSON.stringify(settings, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wavebench_audio_settings.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    showToast('Settings exported');
+  });
+
+  const importSettingsInput = document.getElementById('importSettingsInput');
+  document.getElementById('importSettingsBtn').addEventListener('click', () => importSettingsInput.click());
+  importSettingsInput.addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const settings = JSON.parse(reader.result);
+        const ok = applySettingsObject(settings);
+        if (ok) {
+          persistSettingsDebounced();
+          showToast('Settings imported');
+        } else {
+          showToast('That file did not look like valid settings');
+        }
+      } catch (err) {
+        showToast('Invalid JSON file');
+      }
+    };
+    reader.onerror = () => showToast('Could not read file');
+    reader.readAsText(file);
+    importSettingsInput.value = '';
+  });
+
+  document.getElementById('resetSettingsBtn').addEventListener('click', () => {
+    try {
+      if (storageBackend === 'localStorage') window.localStorage.removeItem(SETTINGS_KEY);
+      else if (storageBackend === 'cookie') cookieSet(SETTINGS_KEY, '', -1);
+    } catch (e) { /* ignore */ }
+    state.samplesPerCycle = 2048;
+    state.numCycles = 256;
+    state.sampleRate = 44100;
+    state.bitDepth = 24;
+    state.zeroCrossSnap = true;
+    state.smoothAmt = 0.35;
+    state.crossfadeFrac = 0.35;
+    state.scrub = 0;
+    stages = [makeEmptyStage()];
+
+    document.getElementById('spcVal').textContent = '2048';
+    document.querySelectorAll('#spcSeg button').forEach(b => b.classList.toggle('active', b.dataset.v === '2048'));
+    document.getElementById('cyclesSlider').value = 256;
+    document.getElementById('cyclesVal').textContent = '256';
+    document.getElementById('srSelect').value = '44100';
+    document.getElementById('bitSelect').value = '24';
+    document.getElementById('zeroCrossCheck').checked = true;
+    document.getElementById('smoothSlider').value = 35;
+    document.getElementById('smoothVal').textContent = '35%';
+    document.getElementById('crossfadeSlider').value = 35;
+    document.getElementById('crossfadeVal').textContent = '35%';
+    document.getElementById('libName').value = 'MyWavetables';
+    document.getElementById('currentTableName').value = 'table_01';
+    document.getElementById('noteSelect').value = '130.81';
+    document.getElementById('scanDurSlider').value = 4;
+    document.getElementById('scanDurVal').textContent = '4.0s';
+
+    renderStages();
+    syncScrubRange();
+    updateSpecs();
+    scheduleRender();
+    showToast('Reset to defaults');
+  });
+
+  // attach autosave triggers to the global parameter controls that don't
+  // already call persistSettingsDebounced() via their own handlers
+  ['libName', 'currentTableName', 'noteSelect', 'srSelect', 'bitSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', persistSettingsDebounced);
+  });
+  document.getElementById('cyclesSlider').addEventListener('input', persistSettingsDebounced);
+  document.getElementById('scanDurSlider').addEventListener('input', persistSettingsDebounced);
+  document.getElementById('zeroCrossCheck').addEventListener('change', persistSettingsDebounced);
+  spcSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', persistSettingsDebounced));
+
+  // =========================================================
+  // Init
+  // =========================================================
+  function init() {
+    storageBackend = detectStorageBackend();
+    updateAutosaveStatusUI();
+
+    const restored = loadPersistedSettings();
+    if (restored) {
+      applySettingsObject(restored);
+      if (!stages.length) stages.push(makeEmptyStage());
+    } else {
+      stages.push(makeEmptyStage());
+    }
+
+    renderStages();
+    syncScrubRange();
+    updateSpecs();
+    scheduleRender();
+
+    window.addEventListener('resize', () => {
+      scheduleRender();
+      stages.forEach(s => {
+        const c = miniWaveCacheCtx.get(s.id);
+        if (c) drawStageMiniWave(s, c);
+      });
+    });
+  }
+
+  init();
+})();
+
+</script>
+</body>
+</html>
