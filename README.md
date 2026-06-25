@@ -2,6 +2,8 @@
 
 💡 [Online Demo available at github pages](https://shumiyao.github.io/mpc-wavetable-generator/)
 
+[MPC Wavetable Synth demo on youtube](https://www.youtube.com/shorts/-rzHgK9VTcU)
+
 Turn your own recordings into [AKAI MPC 3.9](https://www.akaipro.com/)–compatible wavetables — no Serum, no Vital, no intermediate synth required. Drop in audio, shape it, export.
 
 A single self-contained HTML file. No build step, no install, no server — everything runs locally in your browser.
